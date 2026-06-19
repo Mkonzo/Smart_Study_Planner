@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PrepWise AI – Smart Study Planner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { 50: '#eef2ff', 100: '#e0e7ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    .spinner {
+      width: 1.25rem;
+      height: 1.25rem;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .day-card summary { list-style: none; cursor: pointer; }
+    .day-card summary::-webkit-details-marker { display: none; }
+    .fade-in { animation: fadeIn 0.35s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50 text-slate-800">
+
+  <!-- CURSOR PROMPT: Add a shared nav bar here; link "Home" to #home and "View Saved Plans" to #plans -->
+  <header class="bg-white/80 backdrop-blur border-b border-slate-200 sticky top-0 z-20">
+    <nav class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
+      <a href="#" onclick="showView('home'); return false;" class="font-bold text-primary-600 text-lg tracking-tight">
+        PrepWise AI
+      </a>
+      <div class="flex gap-2 sm:gap-4 text-sm font-medium">
+        <button onclick="showView('home')" id="nav-home"
+          class="px-3 py-1.5 rounded-lg text-primary-600 bg-primary-50">Home</button>
+        <button onclick="showView('plans')" id="nav-plans"
+          class="px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100">View Saved Plans</button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-8 sm:py-12">
+
+    <!-- ================= HOME VIEW ================= -->
+    <!-- CURSOR PROMPT: This is app/page.tsx — wire form submit to /api/generate when using Next.js -->
+    <section id="view-home">
+      <div class="text-center mb-8 sm:mb-10">
+        <h1 class="text-3xl sm:text-4xl font-bold text-slate-900 mb-2">
+          PrepWise AI – Smart Study Planner
+        </h1>
+        <p class="text-slate-600 max-w-xl mx-auto">
+          Enter your subject, topics, and exam date — get a day-by-day study schedule tailored to your deadline.
+        </p>
+      </div>
+
+      <!-- CURSOR PROMPT: This block maps to components/StudyForm.tsx -->
+      <div class="max-w-lg mx-auto bg-white rounded-2xl shadow-lg shadow-indigo-100/60 p-6 sm:p-8 border border-slate-100">
+        <form id="study-form" class="space-y-5" novalidate>
+          <div>
+            <label for="subject" class="block text-sm font-medium text-slate-700 mb-1.5">Subject</label>
+            <input type="text" id="subject" name="subject" required
+              placeholder="e.g. Organic Chemistry"
+              class="w-full rounded-xl border border-slate-200 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+          </div>
+          <div>
+            <label for="topics" class="block text-sm font-medium text-slate-700 mb-1.5">Topics</label>
+            <textarea id="topics" name="topics" required rows="3"
+              placeholder="Comma-separated: Alkanes, Stereochemistry, Reactions..."
+              class="w-full rounded-xl border border-slate-200 px-4 py-2.5 resize-y focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"></textarea>
+          </div>
+          <div>
+            <label for="examDate" class="block text-sm font-medium text-slate-700 mb-1.5">Exam Date</label>
+            <input type="date" id="examDate" name="examDate" required
+              class="w-full rounded-xl border border-slate-200 px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+            <p id="today-helper" class="mt-1.5 text-xs text-slate-500"></p>
+          </div>
+          <p id="form-error" class="hidden text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2"></p>
+          <button type="submit" id="submit-btn"
+            class="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-xl py-3 transition disabled:opacity-60 disabled:cursor-not-allowed">
+            <span id="submit-spinner" class="spinner hidden"></span>
+            <span id="submit-text">Generate Study Plan</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- Generated plan display -->
+      <div id="generated-plan" class="hidden mt-10 fade-in"></div>
+    </section>
+
+    <!-- ================= SAVED PLANS VIEW ================= -->
+    <!-- CURSOR PROMPT: This maps to app/plans/page.tsx — swap loadPlans() for Supabase fetch -->
+    <section id="view-plans" class="hidden">
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold text-slate-900 mb-2">Saved Study Plans</h1>
+        <p class="text-slate-600">All plans you've generated, stored locally.</p>
+      </div>
+      <div id="plans-loading" class="hidden flex justify-center py-16">
+        <div class="spinner border-primary-200 border-t-primary-600" style="width:2rem;height:2rem;border-width:3px;"></div>
+      </div>
+      <div id="plans-empty" class="hidden text-center py-16">
+        <p class="text-slate-500 text-lg">No plans yet.</p>
+        <button onclick="showView('home')"
+          class="mt-4 text-primary-600 font-medium hover:underline">Create your first plan →</button>
+      </div>
+      <div id="plans-grid" class="grid gap-6 sm:grid-cols-2"></div>
+    </section>
+
+  </main>
+
+  <script src="lib/dateUtils.js"></script>
+  <script>
+    /* ============================================================
+       CONFIG
+       CURSOR PROMPT: When moving to Next.js, move keys to .env.local
+       and call /api/generate instead of local generation.
+    ============================================================ */
+    const STORAGE_KEY = 'study_plans';
+    const USE_LOCAL_GENERATOR = true; // set false + add API route for Groq
+    // Dev debug mirrors process.env.NODE_ENV === "development" — remove before deployment
+    const IS_DEV = location.hostname === 'localhost'
+      || location.hostname === '127.0.0.1'
+      || location.protocol === 'file:';
+
+    /* ============================================================
+       STATE
+    ============================================================ */
+    let currentView = 'home';
+
+    /* ============================================================
+       NAV
+    ============================================================ */
+    function showView(view) {
+      currentView = view;
+      document.getElementById('view-home').classList.toggle('hidden', view !== 'home');
+      document.getElementById('view-plans').classList.toggle('hidden', view !== 'plans');
+      document.getElementById('nav-home').className = view === 'home'
+        ? 'px-3 py-1.5 rounded-lg text-primary-600 bg-primary-50'
+        : 'px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100';
+      document.getElementById('nav-plans').className = view === 'plans'
+        ? 'px-3 py-1.5 rounded-lg text-primary-600 bg-primary-50'
+        : 'px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100';
+      if (view === 'plans') renderSavedPlans();
+    }
+
+    /* ============================================================
+       STUDY FORM — mirrors StudyForm.tsx
+    ============================================================ */
+    const form = document.getElementById('study-form');
+    const formError = document.getElementById('form-error');
+    const submitBtn = document.getElementById('submit-btn');
+    const submitText = document.getElementById('submit-text');
+    const submitSpinner = document.getElementById('submit-spinner');
+
+    function setLoading(isLoading) {
+      submitBtn.disabled = isLoading;
+      submitText.textContent = isLoading ? 'Generating...' : 'Generate Study Plan';
+      submitSpinner.classList.toggle('hidden', !isLoading);
+    }
+
+    function showError(msg) {
+      if (msg) {
+        formError.textContent = msg;
+        formError.classList.remove('hidden');
+      } else {
+        formError.classList.add('hidden');
+        formError.textContent = '';
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      showError('');
+
+      const subject = document.getElementById('subject').value.trim();
+      const topics = document.getElementById('topics').value.trim();
+      const examDate = document.getElementById('examDate').value;
+
+      if (!subject || !topics || !examDate) {
+        showError('Please fill in all fields before generating a plan.');
+        return;
+      }
+
+      if (getDaysUntil(examDate) < 0) {
+        showError('Exam date cannot be in the past.');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const plan = await generatePlan({ subject, topics, examDate });
+        savePlan(plan);
+        renderGeneratedPlan(plan);
+      } catch (err) {
+        showError(err.message || 'Something went wrong. Please try again.');
+        document.getElementById('generated-plan').classList.add('hidden');
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    /* ============================================================
+       PLAN GENERATION
+       CURSOR PROMPT: Replace generatePlan() body with fetch('/api/generate')
+       POST { subject, topics, examDate } — see app/api/generate/route.ts spec.
+       Groq model: llama-3.3-70b-versatile. Parse JSON, strip markdown fences.
+    ============================================================ */
+    async function generatePlan({ subject, topics, examDate }) {
+      if (!USE_LOCAL_GENERATOR) {
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subject, topics, examDate })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Generation failed');
+        return data;
+      }
+
+      // Local smart planner (no API key needed)
+      await delay(900);
+
+      const topicList = topics.split(',').map(t => t.trim()).filter(Boolean);
+      if (!topicList.length) throw new Error('Please enter at least one topic.');
+
+      // CURSOR PROMPT: Pass this string into the Groq system/user prompt in route.ts
+      const aiContext = buildAIContext(examDate);
+      console.info('[PrepWise AI context]', aiContext);
+
+      const totalDays = Math.max(1, getDaysUntil(examDate));
+      const startDate = getTodayISO();
+
+      const schedule = [];
+      const tasksPerTopic = [
+        'Read core notes and highlight key definitions',
+        'Watch a short lecture or tutorial on this topic',
+        'Work through 5–10 practice questions',
+        'Create a one-page summary sheet',
+        'Review mistakes from practice and redo weak areas'
+      ];
+
+      for (let day = 1; day <= totalDays; day++) {
+        const dateISO = addDaysToISO(startDate, day - 1);
+        const topicIndex = Math.floor((day - 1) * topicList.length / totalDays);
+        const topic = topicList[Math.min(topicIndex, topicList.length - 1)];
+        const isReviewDay = day === totalDays;
+        const dayTasks = isReviewDay
+          ? ['Light review of all topics', 'Attempt a timed mock section', 'Rest well before the exam']
+          : [
+              `Study: ${topic}`,
+              tasksPerTopic[(day - 1) % tasksPerTopic.length],
+              day % 3 === 0 ? `Quick recap of previous topics in ${subject}` : `Take 10-minute notes on ${topic}`
+            ];
+
+        schedule.push({
+          day,
+          date: dateISO,
+          topic: isReviewDay ? 'Final Review & Exam Prep' : topic,
+          tasks: dayTasks
+        });
+      }
+
+      return {
+        id: crypto.randomUUID(),
+        subject,
+        examDate,
+        schedule
+      };
+    }
+
+    function delay(ms) {
+      return new Promise(r => setTimeout(r, ms));
+    }
+
+    /* ============================================================
+       STORAGE
+       CURSOR PROMPT: Swap localStorage for Supabase study_plans table.
+       SQL:
+       CREATE TABLE study_plans (
+         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+         subject text NOT NULL,
+         exam_date date NOT NULL,
+         schedule jsonb NOT NULL,
+         created_at timestamptz DEFAULT now()
+       );
+    ============================================================ */
+    function loadPlans() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      } catch {
+        return [];
+      }
+    }
+
+    function savePlan(plan) {
+      const plans = loadPlans();
+      const entry = { ...plan, createdAt: getTimestampISO() };
+      plans.unshift(entry);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(plans));
+      return entry;
+    }
+
+    function deletePlan(id) {
+      const plans = loadPlans().filter(p => p.id !== id);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(plans));
+      renderSavedPlans();
+    }
+
+    /* ============================================================
+       PLAN CARD — mirrors components/PlanCard.tsx
+       CURSOR PROMPT: Extract to React component; accept { id, subject, examDate, schedule }
+    ============================================================ */
+    function renderPlanCard(plan, { showDelete = false } = {}) {
+      const daysUntil = getDaysUntil(plan.examDate);
+      const isPast = daysUntil < 0;
+      const countdown = getExamCountdownLabel(plan.examDate);
+
+      const daysHtml = (plan.schedule || []).map(day => `
+        <details class="day-card border border-slate-100 rounded-xl mb-2 bg-slate-50/50">
+          <summary class="flex items-center justify-between px-4 py-3 font-medium text-sm">
+            <span>Day ${day.day} · ${formatFriendlyDate(day.date)} · ${escapeHtml(day.topic)}</span>
+            <span class="text-slate-400 text-xs">▼</span>
+          </summary>
+          <ul class="px-4 pb-3 text-sm text-slate-600 space-y-1 list-disc list-inside">
+            ${(day.tasks || []).map(t => `<li>${escapeHtml(t)}</li>`).join('')}
+          </ul>
+        </details>
+      `).join('');
+
+      const cardClass = isPast
+        ? 'bg-slate-100 rounded-2xl shadow-sm border border-slate-200 overflow-hidden fade-in opacity-75'
+        : 'bg-white rounded-2xl shadow-md border border-slate-100 overflow-hidden fade-in';
+
+      const headerClass = isPast
+        ? 'bg-slate-400 text-white px-5 py-4'
+        : 'bg-gradient-to-r from-primary-600 to-indigo-600 text-white px-5 py-4';
+
+      const pastBadge = isPast
+        ? '<span class="inline-block mt-1 text-xs font-semibold uppercase tracking-wide bg-slate-500/40 text-slate-100 px-2 py-0.5 rounded">Past</span>'
+        : '';
+
+      return `
+        <article class="${cardClass}">
+          <div class="${headerClass}">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h3 class="font-bold text-lg">${escapeHtml(plan.subject)}</h3>
+                <p class="text-sm mt-0.5 ${isPast ? 'text-slate-200' : 'text-primary-100'}">
+                  Exam: ${formatFriendlyDate(plan.examDate)}
+                </p>
+                ${pastBadge}
+              </div>
+              <span class="text-xs font-medium whitespace-nowrap ${isPast ? 'text-slate-200' : 'text-primary-100'}">
+                ${escapeHtml(countdown)}
+              </span>
+            </div>
+          </div>
+          <div class="p-4 max-h-80 overflow-y-auto">
+            ${daysHtml || '<p class="text-slate-400 text-sm">No schedule entries.</p>'}
+          </div>
+          ${showDelete ? `
+            <div class="px-4 pb-4">
+              <button onclick="deletePlan('${plan.id}')"
+                class="text-sm text-red-600 hover:text-red-700 font-medium">Delete plan</button>
+            </div>
+          ` : ''}
+        </article>
+      `;
+    }
+
+    function renderGeneratedPlan(plan) {
+      const el = document.getElementById('generated-plan');
+      el.innerHTML = `
+        <h2 class="text-xl font-bold text-slate-900 mb-4 text-center">Your Study Plan</h2>
+        <div class="max-w-2xl mx-auto">${renderPlanCard(plan)}</div>
+      `;
+      el.classList.remove('hidden');
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function renderSavedPlans() {
+      const loading = document.getElementById('plans-loading');
+      const empty = document.getElementById('plans-empty');
+      const grid = document.getElementById('plans-grid');
+
+      loading.classList.remove('hidden');
+      empty.classList.add('hidden');
+      grid.innerHTML = '';
+
+      setTimeout(() => {
+        const plans = sortPlansByExamDate(loadPlans());
+        loading.classList.add('hidden');
+
+        if (!plans.length) {
+          empty.classList.remove('hidden');
+          return;
+        }
+
+        grid.innerHTML = plans.map(p => renderPlanCard(p, { showDelete: true })).join('');
+      }, 350);
+    }
+
+    /* ============================================================
+       STUDY FORM INIT — mirrors StudyForm.tsx date wiring
+       All dates come from lib/dateUtils.js — nothing hardcoded here.
+    ============================================================ */
+    function initStudyForm() {
+      const today = getTodayISO();
+      const examInput = document.getElementById('examDate');
+      examInput.min = today;
+      if (!examInput.value || getDaysUntil(examInput.value) < 0) {
+        examInput.value = today;
+      }
+      document.getElementById('today-helper').textContent =
+        `Today is ${formatFriendlyDate(today)}`;
+    }
+
+    function initDevDebug() {
+      if (!IS_DEV) return;
+      const el = document.getElementById('dev-debug');
+      el.classList.remove('hidden');
+      el.innerHTML =
+        `[DEV] getTodayISO() = ${getTodayISO()} · getCurrentMonthYear() = ${getCurrentMonthYear()}` +
+        `<br><span class="text-amber-600">Remove this debug line before final deployment.</span>`;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    initStudyForm();
+    initDevDebug();
+  </script>
+</body>
+</html>
